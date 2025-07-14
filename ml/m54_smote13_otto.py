@@ -103,6 +103,8 @@ print(y_pred)
 acc = accuracy_score(y_pred, y_test)
 #f1 다중에서도 사용 가능!!!
 f1 = f1_score(y_pred, y_test, average = 'macro')
+print("===============", model.__class__.__name__, "======================")
+
 print('accuracy score:', acc)
 print('f1 score:', f1)
 

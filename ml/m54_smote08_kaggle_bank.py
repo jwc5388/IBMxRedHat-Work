@@ -5,6 +5,7 @@ import random
 from sklearn.datasets import load_wine, load_breast_cancer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score,f1_score
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 
 from keras.models import Sequential
 from keras.layers import Dense
@@ -24,37 +25,44 @@ else:                                                 # 로컬인 경우
     
 basepath = os.path.join(BASE_PATH)
 
-#1 data
-path = basepath +  '_data/diabetes/'
+# 1. Load Data
+path = basepath + '_data/kaggle/bank/'
 
 train_csv = pd.read_csv(path + 'train.csv', index_col=0)
 test_csv = pd.read_csv(path + 'test.csv', index_col=0)
-sample_submission_csv = pd.read_csv(path + 'sample_submission.csv', index_col= 0)
+submission_csv = pd.read_csv(path + 'sample_submission.csv', index_col=0)
 
-print(train_csv.info()) # [652 rows x 9 columns]
-print(test_csv.info()) #  [116 rows x 8 columns]
-print(sample_submission_csv.info()) # [116 rows x 1 columns]
+# 2. Encode categorical features
+le_geo = LabelEncoder()
+le_gender = LabelEncoder()
 
+train_csv['Geography'] = le_geo.fit_transform(train_csv['Geography'])
+train_csv['Gender'] = le_gender.fit_transform(train_csv['Gender'])
 
+test_csv['Geography'] = le_geo.transform(test_csv['Geography'])
+test_csv['Gender'] = le_gender.transform(test_csv['Gender'])
 
-x = train_csv.drop(['Outcome'], axis=1)
-y = train_csv['Outcome']
+# 3. Drop unneeded columns
+train_csv = train_csv.drop(['CustomerId', 'Surname'], axis=1)
+test_csv = test_csv.drop(['CustomerId', 'Surname'], axis=1)
 
-x = x.replace(0, np.nan)
-x = x.fillna(train_csv.mean())
+# 4. Separate features and target
+x = train_csv.drop(['Exited'], axis=1)
+feature_names = x.columns
+y = train_csv['Exited']
 
-print(x.shape, y.shape)         #(652, 8) (652,)
-print(np.unique(y, return_counts=True))         #(array([0, 1]), array([424, 228]))
-
+print(x.shape, y.shape)      
+print(np.unique(y, return_counts=True))        
+# (165034, 10) (165034,)
+# (array([0, 1]), array([130113,  34921]))
 # exit()
 
-# x_train, x_test, y_train, y_test = train_test_split(x,y, train_size=0.8, shuffle=True, random_state=42, stratify=y)
+x_train, x_test, y_train, y_test = train_test_split(x,y, train_size=0.8, shuffle=True, random_state=42, stratify=y)
 
 
-#traintestsplit은 
-x_train, x_test, y_train, y_test = train_test_split(x,y, random_state=seed, train_size=0.8, shuffle=True, stratify=y)
-
-#######################################SMOTE 적용#############################################
+scaler = StandardScaler()
+x_train = scaler.fit_transform(x_train)
+x_test = scaler.transform(x_test)
 from imblearn.over_sampling import SMOTE
 import sklearn as sk
 
@@ -65,15 +73,17 @@ import sklearn as sk
 
 smote = SMOTE(random_state= seed,
               k_neighbors=5,        #default
-              #sampling_strategy='auto', #default
+              sampling_strategy='auto', #default
             # sampling_strategy= 0.75
-              sampling_strategy= {0:1000,1:1000},  #(array([0, 1, 2]), array([50, 57, 33]))
+              #sampling_strategy= {0:1000,1:1000},  #(array([0, 1, 2]), array([50, 57, 33]))
             # n_jobs = -1,  내 버전은 안되고, 선생님 버전은 됨 0.12 이후로 삭제됨/ 이미 포함
             
               )
 x_train, y_train = smote.fit_resample(x_train, y_train)
 
 print(np.unique(y_train, return_counts=True))
+
+
 
 
 # exit()

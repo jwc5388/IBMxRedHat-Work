@@ -35,6 +35,8 @@ model.fit(x_train, y_train)
 
 y_pred = model.predict(x_test)
 acc = accuracy_score(y_test, y_pred)
+print("===============", model.__class__.__name__, "======================")
+
 print('accuracy score:', acc)
 
 print('f1 score:', f1_score(y_test, y_pred))

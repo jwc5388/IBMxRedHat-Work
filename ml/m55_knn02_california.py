@@ -36,6 +36,8 @@ y_pred = model.predict(x_test)
 # acc = accuracy_score(y_test, y_pred)
 # print('accuracy score:', acc)
 
+print("===============", model.__class__.__name__, "======================")
+
 print('r2 score:', r2_score(y_test, y_pred))
 
 

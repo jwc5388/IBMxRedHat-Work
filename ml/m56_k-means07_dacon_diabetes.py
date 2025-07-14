@@ -6,26 +6,42 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.metrics import accuracy_score, f1_score, r2_score
 from sklearn.cluster import KMeans
+import pandas as pd
 
 seed = 123
 random.seed(seed)
 np.random.seed(seed)
 
-# 1. 데이터
-datasets = load_breast_cancer()
-x = datasets.data
-y = datasets.target
+import os
 
-print(x.shape, y.shape)  
+if os.path.exists('/workspace/TensorJae/Study25/'):   # GPU 서버인 경우
+    BASE_PATH = '/workspace/TensorJae/Study25/'
+else:                                                 # 로컬인 경우
+    BASE_PATH = os.path.expanduser('~/Desktop/IBM:RedHat/Study25/')
+    
+basepath = os.path.join(BASE_PATH)
 
-x_train, x_test, y_train, y_test = train_test_split(
-    x, y, train_size=0.8, random_state=seed,
-    stratify=y
-)
+#1 data
+path = basepath +  '_data/diabetes/'
+
+train_csv = pd.read_csv(path + 'train.csv', index_col=0)
+test_csv = pd.read_csv(path + 'test.csv', index_col=0)
+sample_submission_csv = pd.read_csv(path + 'sample_submission.csv', index_col= 0)
+
+x = train_csv.drop(['Outcome'], axis=1)
+y = train_csv['Outcome']
+
+x = x.replace(0, np.nan)
+x = x.fillna(train_csv.mean())
+
+x_train, x_test, y_train, y_test = train_test_split(x,y, train_size=0.8, random_state=seed, stratify=y)
+
+
 
 scaler = StandardScaler()
 x_train = scaler.fit_transform(x_train)
 x_test = scaler.transform(x_test)
+
 
 # 2. 모델구성
 # model = KNeighborsClassifier(n_neighbors=5)
@@ -101,7 +117,17 @@ print('accuracy_score :', acc)
 f1 = f1_score(y_test, y_pred)
 print('f1_score :', f1)
 
-# ================ KNeighborsClassifier ================
-# acc :  0.9736842105263158
-# accuracy_score : 0.9736842105263158
-# f1_score : 0.9793103448275862
+
+# Name: Outcome, dtype: int64
+# Confusion Matrix:
+#  [[105 234]
+#  [133  49]]
+# Confusion Matrix:
+#  [[105 234]
+#  [133  49]]
+# 클러스터 라벨은 실제 y와 반대로 매핑됨 (0↔1)
+# 최종 Accuracy: 0.7044145873320538
+# Predicted Cluster    0    1
+# Actual                     
+# 0                  105  234
+# 1                  133   49

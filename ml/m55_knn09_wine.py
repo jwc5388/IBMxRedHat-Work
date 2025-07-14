@@ -33,10 +33,15 @@ model.fit(x_train, y_train)
 
 y_pred = model.predict(x_test)
 acc = accuracy_score(y_test, y_pred)
+
+
+print("===============", model.__class__.__name__, "======================")
+
 print('accuracy score:', acc)
 
-# print('f1 score:', f1_score(y_test, y_pred))
+f1 = f1_score(y_test, y_pred, average='macro')
+print("F1 Score:", f1)
 
-
+# =============== KNeighborsClassifier ======================
 # accuracy score: 0.9444444444444444
-
+# F1 Score: 0.9487179487179488
