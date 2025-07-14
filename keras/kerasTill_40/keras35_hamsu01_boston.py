@@ -1,0 +1,118 @@
+
+
+import sklearn as sk
+import pandas as pd
+import numpy as np
+
+data_url = "http://lib.stat.cmu.edu/datasets/boston"
+raw_df = pd.read_csv(data_url, sep="\s+", skiprows=22, header=None)
+data = np.hstack([raw_df.values[::2, :], raw_df.values[1::2, :2]])
+target = raw_df.values[1::2, 2]
+
+
+from keras.models import Sequential, Model
+from keras.layers import Dense, BatchNormalization, Dropout, Input
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+import time
+
+print(data)
+x = data
+y = target
+
+
+print(x.shape, y.shape)
+
+# (506, 13) (506,)
+
+x_train, x_test, y_train, y_test = train_test_split(
+    x,y, train_size=0.8, shuffle=True, 
+    random_state= 42,
+    
+)
+
+scaler = MinMaxScaler()
+x_train = scaler.fit_transform(x_train)
+x_test = scaler.transform(x_test)
+
+print(np.min(x_train), np.max(x_train))
+print(np.min(x_test), np.max(x_test))
+
+
+model = Sequential()
+
+model.add(Dense(32, input_dim = 13, activation='relu'))
+model.add(Dropout(0.3))
+model.add(Dense(32, activation='relu'))
+model.add(Dropout(0.3))
+model.add(Dense(32, activation='relu'))
+model.add(Dropout(0.3))
+model.add(Dense(32, activation='relu'))
+model.add(Dense(32, activation='relu'))
+model.add(Dense(1))
+
+
+
+#model 함수형
+input1 = Input(shape=(13,))
+dense1 = Dense(32, name='first', activation= 'relu')(input1)
+drop1 = Dropout(0.3)(dense1)
+dense2 = Dense(32)(drop1)
+drop2 = Dropout(0.3)(dense2)
+dense3 = Dense(32)(drop2)
+drop3 = Dropout(0.3)(dense3)
+dense4 = Dense(32)(drop3)
+dense5 = Dense(32)(dense4)
+output1 = Dense(1)(dense5)
+model1 = Model(inputs = input1, outputs = output1)
+
+# model.summary()
+
+model.summary()
+
+model.compile(loss = 'mse', optimizer= 'adam', metrics= ['acc'])
+
+
+start = time.time()
+##list 형식으로 저장. 매 epoch 끝날 때마다 하나씩 들어가니, epoch 갯수만큼 
+hist = model.fit(x_train,y_train, epochs = 200, batch_size =32,
+          verbose = 1,
+          validation_split = 0.2,
+          
+          )
+end = time.time()
+
+loss, acc = model.evaluate(x_test,y_test)
+print('loss:', loss)
+print('accuracy:', acc)
+
+
+##dropout loss: 27.975465774536133
+# accuracy: 0.0
+# 걸린시간:  24.010525941848755
+
+# import tensorflow as tf
+# print(tf.__version__)
+
+# gpus = tf.config.list_physical_devices('GPU')
+# print(gpus)
+
+
+# if gpus:
+#     print('GPU exists!')
+# else:
+#     print('GPU doesnt exist')
+
+
+print("걸린시간: ", end - start )
+
+
+
+
+
+# cpu = 걸린시간:  19.60982608795166
+
+# gpu = 29.897397756576538
+
