@@ -333,14 +333,13 @@
 
 
 
-
-
 import torch
 import torch.nn.functional as F
-from torch.nn import Module, NLLLoss, Linear
+from torch import cat
+from torch.nn import Module, Linear, Conv2d, Dropout2d, NLLLoss, BatchNorm2d
 from torch.nn.parameter import Parameter
-from torch.utils.data import DataLoader, Subset
 from torch.optim import Adam
+from torch.utils.data import DataLoader, Subset
 
 import pennylane as qml
 import torchvision
@@ -349,10 +348,11 @@ from tqdm import tqdm
 import numpy as np
 from datetime import datetime
 
-# 1. Device & 데이터 준비
+# 1. Device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_default_dtype(torch.float64)
 
+# 2. Data (0 vs 6만 사용)
 transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))
@@ -376,8 +376,8 @@ binary_test_ds = Subset(test_ds, test_idx)
 train_loader = DataLoader(binary_train_ds, batch_size=16, shuffle=True)
 test_loader = DataLoader(binary_test_ds, batch_size=16, shuffle=False)
 
-# 2. Quantum-only 모델 정의
-class QuantumOnlyClassifier(Module):
+# 3. Quantum Circuit
+class QuantumCircuit(Module):
     def __init__(self):
         super().__init__()
         self.dev = qml.device("default.qubit", wires=2)
@@ -386,7 +386,7 @@ class QuantumOnlyClassifier(Module):
 
         @qml.qnode(self.dev, interface="torch")
         def circuit(x):
-            qml.AngleEmbedding(x[:2], wires=[0, 1])
+            qml.AngleEmbedding(x, wires=[0, 1])
             qml.CNOT(wires=[0, 1])
             qml.RY(self.params[0], wires=0)
             qml.RY(self.params[1], wires=1)
@@ -402,32 +402,55 @@ class QuantumOnlyClassifier(Module):
             return qml.expval(self.obs)
 
         self.qnode = circuit
+
+    def forward(self, x):
+        return self.qnode(x)
+
+# 4. CNN + Quantum Classifier
+class QuantumCNNClassifier(Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = Conv2d(1, 8, kernel_size=5)
+        self.bn1 = BatchNorm2d(8)
+        self.conv2 = Conv2d(8, 32, kernel_size=5)
+        self.bn2 = BatchNorm2d(32)
+        self.dropout = Dropout2d(0.3)
+        self.fc1 = Linear(512, 64)
+        self.fc2 = Linear(64, 2)
+        self.qnn = QuantumCircuit()
         self.final = Linear(1, 1)
 
     def forward(self, x):
-        # 이미지를 벡터로 펼치고 앞 2개만 사용 (2-qubit 제한)
-        x = x.view(x.size(0), -1)[:, :2]
-        out = []
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.max_pool2d(x, 2)
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.max_pool2d(x, 2)
+        x = self.dropout(x)
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        q_out = []
         for i in range(x.size(0)):
-            val = self.qnode(x[i])
-            out.append(val)
-        x = torch.stack(out).view(-1, 1)
+            q_val = self.qnn(x[i])
+            q_out.append(q_val)
+        x = torch.stack(q_out).view(-1, 1)
         x = self.final(x)
-        return F.log_softmax(torch.cat((x, 1 - x), dim=-1), dim=-1)
+        x_cat = torch.stack([x, 1 - x], dim=1).squeeze(-1)
+        return F.log_softmax(x_cat, dim=-1)
 
-# 3. 모델 생성 및 제약 검사
-model = QuantumOnlyClassifier().to(device)
+# 5. Init & Check
+model = QuantumCNNClassifier().to(device)
 dummy_input = torch.tensor([0.0, 0.0], dtype=torch.float64)
-specs = qml.specs(model.qnode)(dummy_input)
+specs = qml.specs(model.qnn.qnode)(dummy_input)
 total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 assert specs["num_tape_wires"] <= 8
 assert specs["resources"].depth <= 30
 assert specs["num_trainable_params"] <= 60
 assert total_params <= 50000
-print("✅ 회로 조건 통과")
+print("\u2705 \ud68c\ub85c \uc870\uac74 \ud1b5\uacfc")
 
-# 4. 학습
-optimizer = Adam(model.parameters(), lr=0.001)
+# 6. Train
+optimizer = Adam(model.parameters(), lr=0.0005)
 loss_fn = NLLLoss()
 epochs = 10
 model.train()
@@ -446,7 +469,7 @@ for epoch in range(epochs):
         pbar.set_postfix(loss=f"{loss.item():.4f}")
     print(f"[Epoch {epoch+1}] Avg Loss: {total_loss / len(train_loader):.4f}")
 
-# 5. 추론 및 저장
+# 7. Predict only 0/6
 model.eval()
 all_preds = []
 with torch.no_grad():
@@ -459,8 +482,9 @@ with torch.no_grad():
 y_pred = torch.cat(all_preds).numpy()
 y_true = test_ds.targets[test_mask].numpy()
 score = (np.where(y_pred == 1, 6, 0) == np.where(y_true == 1, 6, 0)).mean()
-print(f"\n🎯 Score (0 vs 6 only): {score:.4f}")
+print(f"\n[Score] 0 vs 6 only: {score:.4f}")
 
+# 8. Save
 y_pred_final = np.zeros(len(test_ds), dtype=int)
 y_pred_final[test_idx] = np.where(y_pred == 1, 6, 0)
 

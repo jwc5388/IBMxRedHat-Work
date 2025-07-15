@@ -166,3 +166,94 @@ plt.show()
 # 2. 원본 x, 로그 y                  → R² Score: 0.5652
 # 3. 로그 x, 원본 y                  → R² Score: 0.5548
 # 4. 로그 x, 로그 y                  → R² Score: 0.5783
+
+
+
+
+
+from sklearn.datasets import fetch_california_housing
+
+import numpy as np
+
+from sklearn.svm import LinearSVC
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+
+from sklearn.model_selection import cross_val_score, cross_val_predict, KFold, StratifiedKFold
+from sklearn.neural_network import MLPClassifier, MLPRegressor
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler, MaxAbsScaler, RobustScaler
+
+from sklearn.metrics import accuracy_score, r2_score
+from xgboost import XGBClassifier, XGBRegressor
+from lightgbm import LGBMClassifier, LGBMRegressor
+from catboost import CatBoostClassifier, CatBoostRegressor
+
+import random
+seed = 333
+random.seed(seed)
+np.random.seed(seed)
+
+from sklearn.ensemble import BaggingRegressor, BaggingClassifier, VotingRegressor, VotingClassifier
+
+
+
+import os
+
+if os.path.exists('/workspace/TensorJae/Study25/'):   # GPU 서버인 경우
+    BASE_PATH = '/workspace/TensorJae/Study25/'
+else:                                                 # 로컬인 경우
+    BASE_PATH = os.path.expanduser('~/Desktop/IBM:RedHat/Study25/')
+    
+basepath = os.path.join(BASE_PATH)
+
+#1 data
+
+
+path = basepath + '_data/dacon/ddarung/'
+
+train_csv = pd.read_csv(path + 'train.csv', index_col = 0)
+# print(train_csv) #[1459 rows x 10 columns]
+
+test_csv = pd.read_csv(path + 'test.csv', index_col= 0)
+# print(test_csv) #[715 rows x 9 columns]
+
+submission_csv = pd.read_csv(path+ 'submission.csv', index_col=0)
+# print(submission_csv) # [715 rows x 1 columns]
+
+train_csv = train_csv.dropna()
+
+
+# test_csv = test_csv.dropna()
+test_csv = test_csv.fillna(train_csv.mean())
+
+x = train_csv.drop(['count'], axis=1)  #count라는 axis=1 열 삭제, 행은 axis =0
+feature_names = x.columns
+print(x) #[1459 rows x 9 columns]
+
+y = train_csv['count'] 
+
+# ========================= log 변환 ===========================
+# y = np.log1p(y)
+x = np.log1p(x)
+
+x_train, x_test, y_train, y_test = train_test_split(
+    x, y, train_size=0.8, random_state=190, shuffle=True, 
+    # stratify=y,
+)
+
+xgb = XGBRegressor()
+lg = LGBMRegressor()
+cat = CatBoostRegressor()
+
+model = VotingRegressor(
+    estimators=[('XGB', xgb), ('LG', lg), ('CAT', cat)],
+    # voting='soft' # 디폴트는 hard
+)
+
+model.fit(x_train, y_train)
+
+results = model.score(x_test, y_test)
+print('최종점수 : ', results)
