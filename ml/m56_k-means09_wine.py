@@ -1,4 +1,4 @@
-from sklearn.datasets import load_breast_cancer
+from sklearn.datasets import load_breast_cancer, load_wine
 import random
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -12,11 +12,13 @@ random.seed(seed)
 np.random.seed(seed)
 
 # 1. 데이터
-datasets = load_breast_cancer()
+datasets = load_wine()
 x = datasets.data
 y = datasets.target
 
-print(x.shape, y.shape)  
+print(x.shape, y.shape)  # (178, 13) (178,)
+
+# exit()
 
 x_train, x_test, y_train, y_test = train_test_split(
     x, y, train_size=0.8, random_state=seed,
@@ -29,7 +31,7 @@ x_test = scaler.transform(x_test)
 
 # 2. 모델구성
 # model = KNeighborsClassifier(n_neighbors=5)
-model = KMeans(n_clusters=2, init='k-means++', 
+model = KMeans(n_clusters=3, init='k-means++', 
                n_init=10, random_state=seed)
 
 y_train_pred = model.fit_predict(x_train)
@@ -75,20 +77,9 @@ df = pd.DataFrame({'Actual': y_train, 'Cluster': y_train_pred})
 print(pd.crosstab(df['Actual'], df['Cluster'], rownames=['Actual'], colnames=['Predicted Cluster']))
 
 
-# Confusion Matrix:
-#  [[138  32]
-#  [ 11 274]]
-# 클러스터 라벨은 실제 y와 동일하게 매핑됨
-# 최종 Accuracy: 0.9054945054945055
-# Predicted Cluster    0    1
-# Actual
-# 0                  138   32
-# 1                   11  274
 
 
-
-
-exit()
+# exit()
 
 
 model.fit(x_train, y_train)
