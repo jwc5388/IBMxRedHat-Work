@@ -47,3 +47,8 @@ data = load_iris()
 x, y = data.data, data.target
 
 check_target_type(y)
+
+
+"""버전들
+"""
+

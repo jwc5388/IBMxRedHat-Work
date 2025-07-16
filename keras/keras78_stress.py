@@ -6,6 +6,9 @@ from catboost import CatBoostRegressor
 import lightgbm as lgb
 import xgboost as xgb
 from sklearn.preprocessing import LabelEncoder
+from xgboost.callback import EarlyStopping
+from xgboost.sklearn import XGBRegressor
+# from xgboost import XGBRegressor
 import os
 
 # 경로 설정
@@ -86,14 +89,19 @@ lgb_model = lgb.LGBMRegressor(
 lgb_model.fit(X_train, y_train, eval_set=[(X_val, y_val)], early_stopping_rounds=50, verbose=0)
 
 # ✅ XGBoost
-xgb_model = xgb.XGBRegressor(
+xgb_model = XGBRegressor(
     n_estimators=1000,
     learning_rate=0.05,
     max_depth=6,
     objective='reg:absoluteerror',
+    early_stopping_rounds=50,
     random_state=42
 )
-xgb_model.fit(X_train, y_train, eval_set=[(X_val, y_val)], early_stopping_rounds=50, verbose=0)
+xgb_model.fit(
+    X_train, y_train,
+    eval_set=[(X_val, y_val)],
+    verbose=0
+)
 
 # ✅ 앙상블 예측 (검증)
 val_pred = (
@@ -113,5 +121,5 @@ test_pred = (
 ) / 3
 
 submission['stress_score'] = test_pred
-submission.to_csv('submission_ensemble.csv', index=False)
+submission.to_csv(path + 'submission_ensemble.csv', index=False)
 print("📁 Saved: submission_ensemble.csv")
