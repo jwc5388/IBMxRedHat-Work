@@ -257,3 +257,4 @@ model.fit(x_train, y_train)
 
 results = model.score(x_test, y_test)
 print('최종점수 : ', results)
+
