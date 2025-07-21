@@ -226,8 +226,8 @@ import random
 import warnings
 import copy
 
-
-seed = 42
+#41 best 42 best online
+seed = 592
 random.seed(seed)
 np.random.seed(seed)
 warnings.filterwarnings('ignore')
@@ -345,30 +345,52 @@ def competition_score(y_true, y_pred): return 0.5 * (1 - min(normalized_rmse(y_t
 
 def create_xgb_model():
     return xgb.XGBRegressor(
-        n_estimators=500, learning_rate=0.05, max_depth=6, subsample=0.8,
-        colsample_bytree=0.8, reg_alpha=0.1, reg_lambda=1, random_state=seed,
-        tree_method='hist', predictor='auto',
-        # early_stopping_rounds=50, 
-        eval_metric="rmse"
+        n_estimators=1000,
+        learning_rate=0.05,
+        max_depth=6,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        reg_alpha=0.1,
+        reg_lambda=1,
+        random_state=seed,
+        tree_method='hist',
+        predictor='auto',
+        objective='reg:squarederror',
+        early_stopping_rounds=50,     # ✅ XGBoost만 모델 생성자에 설정
+        eval_metric='rmse'
     )
 
 def create_lgb_model():
     return lgb.LGBMRegressor(
-        n_estimators=500, learning_rate=0.05, num_leaves=31, max_depth=6,
-        subsample=0.8, colsample_bytree=0.8, reg_alpha=0.1, reg_lambda=1,
-        random_state=seed, 
-        # early_stopping=50
+        n_estimators=1000,
+        learning_rate=0.05,
+        num_leaves=31,
+        max_depth=6,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        reg_alpha=0.1,
+        reg_lambda=1,
+        random_state=seed,
+        objective='regression'
     )
 
 def create_cat_model():
     return cat.CatBoostRegressor(
-        iterations=500, learning_rate=0.05, depth=6,
-        l2_leaf_reg=3, random_seed=seed, verbose=0,
-        # early_stopping_rounds=50
+        iterations=1000,
+        learning_rate=0.05,
+        depth=6,
+        l2_leaf_reg=3,
+        random_seed=seed,
+        loss_function='RMSE',
+        verbose=0
     )
 
 xgb_model = create_xgb_model()
-xgb_model.fit(x_train, y_train, verbose=0)
+xgb_model.fit(
+    x_train, y_train,
+    eval_set=[(x_val, y_val)],  # ✅ 필수
+    verbose=0
+)
 # ⛔ 원래는 이렇게 validation 포함 → Data Leakage 발생!
 # xgb_model.fit(x_train, y_train, eval_set=[(x_val, y_val)], verbose=0)
 
@@ -400,7 +422,7 @@ score_list = [score_dict.get(f"f{i}", 0) / total_gain for i in range(x_train.sha
 # x_test_selected = best_selection.transform(x_test_scaled)
 
 # 🔧 Top-K Feature 개수 실험
-top_k_list = [30, 50, 70, 100, 150, 300, 500, 600, 610]  # 원하는 K 개수 리스트
+top_k_list = [30, 50, 70, 100, 150, 300, 500, 600, 610,1000,1100,1200,1300,1400,1500, 2000, 2200]  # 원하는 K 개수 리스트
 score_by_k = {}
 
 # feature importance 순으로 index 정렬
@@ -438,26 +460,40 @@ y_val_final = y[val_idx]
 base_models = {
     "XGBoost": create_xgb_model(),
     "LightGBM": create_lgb_model(),
-    "GradientBoosting": GradientBoostingRegressor(n_estimators=300, learning_rate=0.05, max_depth=5,
-        min_samples_split=5, min_samples_leaf=2, subsample=0.8, random_state=seed),
-    "RandomForest": RandomForestRegressor(n_estimators=300, max_depth=10, min_samples_split=5,
-        min_samples_leaf=2, random_state=seed),
+    # "GradientBoosting": GradientBoostingRegressor(n_estimators=300, learning_rate=0.05, max_depth=5,
+    #     min_samples_split=5, min_samples_leaf=2, subsample=0.8, random_state=seed),
+    # "RandomForest": RandomForestRegressor(n_estimators=300, max_depth=10, min_samples_split=5,
+    #     min_samples_leaf=2, random_state=seed),
     "CatBoost": create_cat_model()
 }
 
+# ✅ 베이스 모델 훈련 (기존 코드 유지)
 trained_models = {}
+val_preds = {}  # 각 모델의 validation 예측값 저장
 best_score = -np.inf
 best_model_name = None
-
 for name, model in base_models.items():
     print(f"\n{name} 모델 학습 중...")
     m = copy.deepcopy(model)
-    if name in ["CatBoost", "XGBoost", "LightGBM"]:
-        m.fit(x_train_final, y_train_final, eval_set=[(x_val_final, y_val_final)], verbose=0)
+
+    if name == "LightGBM":
+        m.fit(x_train_final, y_train_final,
+              eval_set=[(x_val_final, y_val_final)],
+              callbacks=[lgb.early_stopping(50, verbose=False)])
+    elif name == "CatBoost":
+        m.fit(x_train_final, y_train_final,
+              eval_set=(x_val_final, y_val_final),
+              early_stopping_rounds=50,
+              verbose=0)
+    elif name == "XGBoost":
+        m.fit(x_train_final, y_train_final,
+              eval_set=[(x_val_final, y_val_final)],
+              verbose=0)
     else:
         m.fit(x_train_final, y_train_final)
 
     y_pred = m.predict(x_val_final)
+    val_preds[name] = y_pred
     score = competition_score(y_val_final, y_pred)
     print(f"→ Score: {score:.4f}")
     trained_models[name] = m
@@ -465,29 +501,31 @@ for name, model in base_models.items():
         best_score = score
         best_model_name = name
 
-stacking_model = StackingRegressor(
-    estimators=[(k.lower(), v) for k, v in trained_models.items()],
-    final_estimator=Ridge(), n_jobs=-1
-)
+# ✅ 직접 스태킹을 위한 메타 데이터 구성
+val_meta_features = np.column_stack([val_preds[m] for m in trained_models])
+meta_model = Ridge()
+meta_model.fit(val_meta_features, y_val_final)
 
-stacking_model.fit(x_train_final, y_train_final)
-y_pred_stack = stacking_model.predict(x_val_final)
-stack_score = competition_score(y_val_final, y_pred_stack)
-print(f"→ Stacking | Score: {stack_score:.4f}")
+# ✅ 테스트 데이터 예측
+test_meta_features = np.column_stack([
+    model.predict(x_test_selected) for model in trained_models.values()
+])
+y_pred_test = meta_model.predict(test_meta_features)
 
-final_model = stacking_model if stack_score > best_score else trained_models[best_model_name]
-final_model.fit(x_selected, y)
-y_pred_test = final_model.predict(x_test_selected)
-
+# ✅ 예측 저장
 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-filename = f"submission_final_{timestamp}.csv"
+filename = f"submission_manualstack_{timestamp}.csv"
 submission['Inhibition'] = y_pred_test
 submission.to_csv(os.path.join(path, filename), index=False)
 print(f"\n✅ 예측 결과 저장 완료 → {filename}")
 
+# 📊 모델별 성능 비교
 print("\n📊 모델별 성능 비교")
 for name, model in trained_models.items():
-    y_pred_compare = model.predict(x_val_final)
+    y_pred_compare = val_preds[name]
     print(f"{name:20} | RMSE: {rmse(y_val_final, y_pred_compare):.4f} | NRMSE: {normalized_rmse(y_val_final, y_pred_compare):.4f} | Pearson: {pearson_correlation(y_val_final, y_pred_compare):.4f} | Score: {competition_score(y_val_final, y_pred_compare):.4f}")
 
-print(f"{'StackingRegressor':20} | RMSE: {rmse(y_val_final, y_pred_stack):.4f} | NRMSE: {normalized_rmse(y_val_final, y_pred_stack):.4f} | Pearson: {pearson_correlation(y_val_final, y_pred_stack):.4f} | Score: {stack_score:.4f}")
+# 메타 모델 성능
+y_pred_meta_val = meta_model.predict(val_meta_features)
+stack_score = competition_score(y_val_final, y_pred_meta_val)
+print(f"{'Manual Stacking':20} | RMSE: {rmse(y_val_final, y_pred_meta_val):.4f} | NRMSE: {normalized_rmse(y_val_final, y_pred_meta_val):.4f} | Pearson: {pearson_correlation(y_val_final, y_pred_meta_val):.4f} | Score: {stack_score:.4f}")
