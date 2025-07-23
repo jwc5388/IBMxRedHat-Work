@@ -328,11 +328,6 @@
 
 
 
-
-
-
-
-
 import torch
 import torch.nn.functional as F
 from torch import cat
@@ -380,25 +375,20 @@ test_loader = DataLoader(binary_test_ds, batch_size=16, shuffle=False)
 class QuantumCircuit(Module):
     def __init__(self):
         super().__init__()
-        self.dev = qml.device("default.qubit", wires=2)
-        self.params = Parameter(torch.rand(8, dtype=torch.float64), requires_grad=True)
-        self.obs = qml.PauliZ(0) @ qml.PauliZ(1)
+        self.dev = qml.device("default.qubit", wires=4)
+        self.params = Parameter(torch.rand(16, dtype=torch.float64), requires_grad=True)
+        self.obs = qml.PauliZ(0) @ qml.PauliZ(3)
 
         @qml.qnode(self.dev, interface="torch")
         def circuit(x):
-            qml.AngleEmbedding(x, wires=[0, 1])
-            qml.CNOT(wires=[0, 1])
-            qml.RY(self.params[0], wires=0)
-            qml.RY(self.params[1], wires=1)
-            qml.CNOT(wires=[1, 0])
-            qml.RY(self.params[2], wires=0)
-            qml.RY(self.params[3], wires=1)
-            qml.CNOT(wires=[0, 1])
-            qml.RY(self.params[4], wires=0)
-            qml.RY(self.params[5], wires=1)
-            qml.CNOT(wires=[1, 0])
-            qml.RY(self.params[6], wires=0)
-            qml.RY(self.params[7], wires=1)
+            qml.AngleEmbedding(x[:4], wires=[0, 1, 2, 3])
+            for i in range(4):
+                qml.RY(self.params[4*i], wires=0)
+                qml.RY(self.params[4*i+1], wires=1)
+                qml.CNOT(wires=[0, 1])
+                qml.RY(self.params[4*i+2], wires=2)
+                qml.RY(self.params[4*i+3], wires=3)
+                qml.CNOT(wires=[2, 3])
             return qml.expval(self.obs)
 
         self.qnode = circuit
@@ -410,15 +400,15 @@ class QuantumCircuit(Module):
 class QuantumCNNClassifier(Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = Conv2d(1, 8, kernel_size=5)
-        self.bn1 = BatchNorm2d(8)
-        self.conv2 = Conv2d(8, 32, kernel_size=5)
-        self.bn2 = BatchNorm2d(32)
+        self.conv1 = Conv2d(1, 4, kernel_size=3, padding=1)
+        self.bn1 = BatchNorm2d(4)
+        self.conv2 = Conv2d(4, 8, kernel_size=3, padding=1)
+        self.bn2 = BatchNorm2d(8)
         self.dropout = Dropout2d(0.3)
-        self.fc1 = Linear(512, 64)
-        self.fc2 = Linear(64, 2)
+        self.fc1 = Linear(8 * 7 * 7, 16)
+        self.fc2 = Linear(16, 4)  # QNN 입력 크기
         self.qnn = QuantumCircuit()
-        self.final = Linear(1, 1)
+        self.final = Linear(1, 2)  # 2 클래스 출력
 
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
@@ -435,24 +425,23 @@ class QuantumCNNClassifier(Module):
             q_out.append(q_val)
         x = torch.stack(q_out).view(-1, 1)
         x = self.final(x)
-        x_cat = torch.stack([x, 1 - x], dim=1).squeeze(-1)
-        return F.log_softmax(x_cat, dim=-1)
+        return F.log_softmax(x, dim=-1)
 
 # 5. Init & Check
 model = QuantumCNNClassifier().to(device)
-dummy_input = torch.tensor([0.0, 0.0], dtype=torch.float64)
+dummy_input = torch.tensor([0.0, 0.0, 0.0, 0.0], dtype=torch.float64)
 specs = qml.specs(model.qnn.qnode)(dummy_input)
 total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 assert specs["num_tape_wires"] <= 8
 assert specs["resources"].depth <= 30
 assert specs["num_trainable_params"] <= 60
 assert total_params <= 50000
-print("\u2705 \ud68c\ub85c \uc870\uac74 \ud1b5\uacfc")
+print(" 회로 조건 통과")
 
 # 6. Train
 optimizer = Adam(model.parameters(), lr=0.0005)
 loss_fn = NLLLoss()
-epochs = 10
+epochs = 15
 model.train()
 
 for epoch in range(epochs):
@@ -492,3 +481,4 @@ now = datetime.now().strftime("%Y%m%d_%H%M%S")
 filename = f"y_pred_{now}.csv"
 np.savetxt(filename, y_pred_final, fmt="%d")
 print(f"📁 저장 완료: {filename}")
+

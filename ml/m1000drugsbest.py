@@ -227,7 +227,7 @@ import warnings
 import copy
 
 #41 best 42 best online
-seed = 592
+seed = 5388
 random.seed(seed)
 np.random.seed(seed)
 warnings.filterwarnings('ignore')
@@ -237,46 +237,6 @@ path = os.path.join(BASE_PATH, '_data/dacon/drugs/')
 train = pd.read_csv(path + 'train.csv')
 test = pd.read_csv(path + 'test.csv')
 submission = pd.read_csv(path + 'sample_submission.csv')
-
-# def get_molecule_descriptors(smiles):
-#     try:
-#         mol = Chem.MolFromSmiles(smiles)
-#         if mol is None: return [0] * 2233
-#         basic = [
-#             Descriptors.MolWt(mol), Descriptors.MolLogP(mol), Descriptors.NumHAcceptors(mol),
-#             Descriptors.NumHDonors(mol), Descriptors.TPSA(mol), Descriptors.NumRotatableBonds(mol),
-#             Descriptors.NumAromaticRings(mol), Descriptors.NumHeteroatoms(mol), Descriptors.FractionCSP3(mol),
-#             Descriptors.NumAliphaticRings(mol), Lipinski.NumAromaticHeterocycles(mol),
-#             Lipinski.NumSaturatedHeterocycles(mol), Lipinski.NumAliphaticHeterocycles(mol),
-#             Descriptors.HeavyAtomCount(mol), Descriptors.RingCount(mol), Descriptors.NOCount(mol),
-#             Descriptors.NHOHCount(mol), Descriptors.NumRadicalElectrons(mol)
-#         ]
-#         morgan = [int(b) for b in AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048).ToBitString()]
-#         maccs = [int(b) for b in MACCSkeys.GenMACCSKeys(mol).ToBitString()]
-#         return basic + morgan + maccs
-#     except:
-#         return [0] * 2233
-
-
-# 1. feature 추출 시 np.nan으로 결측값 처리
-# def get_molecule_descriptors(smiles):
-#     try:
-#         mol = Chem.MolFromSmiles(smiles)
-#         if mol is None: return [np.nan] * 2233  # ⛔ 기존: [0]*2233 → ✅ 변경
-#         basic = [
-#             Descriptors.MolWt(mol), Descriptors.MolLogP(mol), Descriptors.NumHAcceptors(mol),
-#             Descriptors.NumHDonors(mol), Descriptors.TPSA(mol), Descriptors.NumRotatableBonds(mol),
-#             Descriptors.NumAromaticRings(mol), Descriptors.NumHeteroatoms(mol), Descriptors.FractionCSP3(mol),
-#             Descriptors.NumAliphaticRings(mol), Lipinski.NumAromaticHeterocycles(mol),
-#             Lipinski.NumSaturatedHeterocycles(mol), Lipinski.NumAliphaticHeterocycles(mol),
-#             Descriptors.HeavyAtomCount(mol), Descriptors.RingCount(mol), Descriptors.NOCount(mol),
-#             Descriptors.NHOHCount(mol), Descriptors.NumRadicalElectrons(mol)
-#         ]
-#         morgan = [int(b) for b in AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048).ToBitString()]
-#         maccs = [int(b) for b in MACCSkeys.GenMACCSKeys(mol).ToBitString()]
-#         return basic + morgan + maccs
-#     except:
-#         return [np.nan] * 2233
 
 def get_molecule_descriptors(smiles):
     try:
@@ -297,16 +257,6 @@ def get_molecule_descriptors(smiles):
     except:
         return [np.nan] * 2233
 
-# train['features'] = train['Canonical_Smiles'].apply(get_molecule_descriptors)
-# test['features'] = test['Canonical_Smiles'].apply(get_molecule_descriptors)
-
-# x_raw = np.array(train['features'].tolist())
-# y = train['Inhibition'].values
-# x_test_raw = np.array(test['features'].tolist())
-
-# scaler = RobustScaler()
-# x_scaled = scaler.fit_transform(x_raw)
-# x_test_scaled = scaler.transform(x_test_raw)
 
 
 # 2. feature vector 생성
@@ -399,27 +349,6 @@ score_dict = booster.get_score(importance_type='gain')
 total_gain = sum(score_dict.values())
 score_list = [score_dict.get(f"f{i}", 0) / total_gain for i in range(x_train.shape[1])]
 
-# # ✅ 시간 단축: 상위 30개 feature만 threshold로 사용
-# thresholds = np.sort(score_list)[-50:]
-
-# max_score = -np.inf
-# best_selection = None
-# for threshold in thresholds:
-#     selection = SelectFromModel(xgb_model, threshold=threshold, prefit=True)
-#     selected_train = selection.transform(x_train)
-#     selected_val = selection.transform(x_val)
-#     if selected_train.shape[1] == 0: continue
-#     temp_model = create_xgb_model()
-#     temp_model.fit(selected_train, y_train, eval_set=[(selected_val, y_val)], verbose=0)
-#     score = competition_score(y_val, temp_model.predict(selected_val))
-#     if score > max_score:
-#         max_score = score
-#         best_selection = selection
-
-# print(f"\n🔥 Best score after feature selection: {max_score:.4f}")
-
-# x_selected = best_selection.transform(x_scaled)
-# x_test_selected = best_selection.transform(x_test_scaled)
 
 # 🔧 Top-K Feature 개수 실험
 top_k_list = [30, 50, 70, 100, 150, 300, 500, 600, 610,1000,1100,1200,1300,1400,1500, 2000, 2200]  # 원하는 K 개수 리스트
