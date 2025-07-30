@@ -89,7 +89,7 @@ class RNN(nn.Module):
         x = self.relu(x)
         
         # x = x.reshape(-1, 3*32)
-        x = x[:, -1,:]          #가장 마지막 시점의 출력만
+        x = x[:, -1,:]          #가장 마지막 시점의 출력만 torch의 slicing 형태로 잡아줬다
 
         x = self.fc1(x)
         x = self.fc2(x)
