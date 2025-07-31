@@ -124,6 +124,10 @@
 #         optim.step()
 #         # iterator.set_description()
 
+
+
+# 잘못해서 26까지 해버림 여기다가
+
 # === Imports ===
 import pandas as pd
 import numpy as np
@@ -132,6 +136,8 @@ import torch.nn as nn
 import torch.optim as optim  # 이 이름을 그대로 사용 (아래서 optimizer 변수로 구분)
 import random
 from tqdm import tqdm  # ← tqdm는 이렇게 가져와야 바로 tqdm(...) 사용 가능
+import warnings
+warnings.filterwarnings('ignore')
 
 from torch.utils.data import Dataset, DataLoader
 
@@ -239,6 +245,70 @@ model = RNN(input_size=3, hidden_size=64, num_layers=3, timesteps=30).to(DEVICE)
 # === 4) Train ===
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+
+for epoch in range(1,51):
+    iterator = tqdm(train_loader)
+    for x, y in iterator:
+        optimizer.zero_grad()
+
+        hypothesis = model(x.to(DEVICE))
+        loss = nn.MSELoss()(hypothesis, y.to(DEVICE))
+        loss.backward()
+        optimizer.step()
+
+        iterator.set_description(f'epoch:{epoch}, loss: {loss.item()}')
+
+# exit()
+
+
+##save
+
+save_path = '/Users/jaewoo000/Desktop/IBM:RedHat/Study25/_save/torch/'
+torch.save(model.state_dict(), save_path + 't25_netflix.pth')
+
+
+
+# exit()
+
+# #4 평가, 예측
+
+# y_predict = []
+# total_loss =0
+# y_true = []
+# train_loader = DataLoader(train_loader, batch_size=32)
+# with torch.no_grad():
+#     model.load_state_dict(torch.load(save_path +  't25_netflix.pth', map_location=DEVICE))
+#     for x_test, y_test in train_loader:
+#         y_pred = model(x_test.type(torch.FloatTensor).to(DEVICE))
+#         y_predict.append(y_pred.cpu().numpy())
+#         y_true.append(y_test.cpu().numpy())
+
+#         loss = nn.MSELoss(y_pred, y_test.type(torch.FloatTensor).to(DEVICE))
+#         total_loss += loss/len(train_loader)
+
+# print(total_loss)
+
+
+# from sklearn.metrics import r2_score
+
+# print(type(y_predict))
+
+
+# y_predict = np.concatenate(y_predict).flatten()
+# y_true = np.concatenate(y_true)
+
+# r2 = r2_score(y_true, y_predict)
+
+# print('r2:', r2)
+
+# print('total loss:', total_loss.item())
+
+
+# y_predict = np.array(ypr)
+
+
+
 
 EPOCHS = 50  # 필요에 따라 조절
 for epoch in range(1, EPOCHS + 1):

@@ -19,6 +19,12 @@ from datetime import datetime
 import tensorflow as tf
 from keras import backend as K
 from sklearn.metrics import mean_squared_error
+import random
+import torch
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+
 
 # --- 0. 함수 정의 ---
 def deg_to_sin_cos(deg):
