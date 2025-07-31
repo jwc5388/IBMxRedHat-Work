@@ -30,7 +30,7 @@ nn.Softmax(dim=1)
 nn.LeakyReLU(negative_slope=0.01)
 
 # 6. 드롭아웃 (Dropout)
-nn.Dropout(p=0.5)
+nn.Dropout(p=0.2)
 
 # 7. Embedding / NLP / Transformer
 nn.Embedding(num_embeddings, embedding_dim)
