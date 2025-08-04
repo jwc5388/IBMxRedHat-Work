@@ -488,6 +488,11 @@
 # filename = f"y_pred_{now}.csv"
 # np.savetxt(filename, y_pred_final, fmt="%d")
 # print(f"📁 저장 완료: {filename}")
+
+
+
+
+###우진이형 modified
 import os
 import random
 import numpy as np
