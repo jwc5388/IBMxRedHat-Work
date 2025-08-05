@@ -12,8 +12,15 @@ import pandas as pd
 from datetime import datetime
 import os
 import random
+import time 
 
-COLAB_ENV = False  # 로컬 환경 테스트
+# Google Colab 환경에서 파일 다운로드를 위해 필요할 수 있습니다.
+# try:
+#     from google.colab import files
+#     COLAB_ENV = True
+# except ImportError:
+#     COLAB_ENV = False
+COLAB_ENV = False
 
 ##############################
 # 0️⃣ 경로 설정
@@ -24,7 +31,7 @@ os.makedirs(base_path, exist_ok=True)
 ##############################
 # 1️⃣ Seed 고정
 ##############################
-SEED = 42
+SEED = 6054
 random.seed(SEED)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
@@ -43,23 +50,31 @@ print(f"Using device: {device}")
 dev = qml.device("default.qubit", wires=5)
 
 ##############################
-# 3️⃣ QNN 회로 정의
+# 3️⃣ QNN 회로 정의 (동일)
 ##############################
 @qml.qnode(dev, interface="torch")
 def quantum_circuit(inputs, weights):
     num_qubits = 5
-    for i in range(num_qubits):
-        qml.RX(inputs[i % inputs.shape[0]], wires=i)
-        qml.RY(weights[i % weights.shape[0]], wires=i)
-    for i in range(num_qubits - 1):
-        qml.CNOT(wires=[i, i+1])
-    qml.CNOT(wires=[num_qubits-1, 0])
-    for i in range(num_qubits):
-        qml.RZ(weights[(i + weights.shape[0] // 2) % weights.shape[0]], wires=i)
-    return qml.expval(qml.PauliZ(0) @ qml.PauliZ(1))
+    layers = 3
+    
+    num_weights_per_layer = num_qubits * 2
+    
+    for l in range(layers):
+        for i in range(num_qubits):
+            qml.RX(inputs[i], wires=i)
+        
+        for i in range(num_qubits):
+            qml.RY(weights[(l * num_weights_per_layer + i) % weights.shape[0]], wires=i)
+            qml.RZ(weights[(l * num_weights_per_layer + i + num_qubits) % weights.shape[0]], wires=i)
+        
+        for i in range(num_qubits - 1):
+            qml.CNOT(wires=[i, i+1])
+        qml.CNOT(wires=[num_qubits - 1, 0])
+
+    return qml.expval(qml.PauliZ(0) @ qml.PauliZ(1) @ qml.PauliZ(2))
 
 ##############################
-# 4️⃣ 데이터 준비
+# 4️⃣ 데이터 준비 (동일)
 ##############################
 transform_train = transforms.Compose([
     transforms.RandomRotation(15),
@@ -95,11 +110,12 @@ for i in range(len(test_subset)):
 test_eval_loader = DataLoader(test_subset, batch_size=64, shuffle=False, num_workers=4, pin_memory=True)
 
 ##############################
-# 5️⃣ 모델 정의
+# 5️⃣ 모델 정의 (수정)
 ##############################
 class HybridModel(nn.Module):
     def __init__(self):
         super().__init__()
+        # ✅ 파라미터 수를 맞추기 위해 CNN 채널을 줄임
         self.conv1 = nn.Conv2d(1, 16, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
         self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
@@ -109,8 +125,15 @@ class HybridModel(nn.Module):
         self.bn3 = nn.BatchNorm2d(64)
         self.dropout = nn.Dropout(0.3)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc1 = nn.Linear(64, 8)
-        self.q_params = nn.Parameter(torch.rand(30))
+        
+        # ✅ FC 레이어와 QNN 입력 차원 조정
+        self.fc1 = nn.Linear(64, 5) # GAP 후 64채널, QNN 입력 차원을 5 (큐빗 수)로 맞춤
+        self.norm = nn.LayerNorm(5) # QNN 입력에 LayerNorm 적용
+        
+        # ✅ QNN 파라미터 개수 유지 (규격 준수)
+        self.q_params = nn.Parameter(torch.rand(30)) 
+        
+        # ✅ FC 레이어 노드 수 조정
         self.fc2 = nn.Linear(1, 32)
         self.fc3 = nn.Linear(32, 2)
 
@@ -125,9 +148,11 @@ class HybridModel(nn.Module):
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
         x = self.fc1(x)
+        x = self.norm(x)
+        
         q_out = torch.stack([quantum_circuit(x[i], self.q_params) for i in range(x.shape[0])])
         q_out = q_out.unsqueeze(1).to(torch.float32)
-        x = self.fc2(q_out)
+        x = F.relu(self.fc2(q_out))
         x = self.fc3(x)
         return F.log_softmax(x, dim=1)
 
@@ -136,32 +161,34 @@ class HybridModel(nn.Module):
 ##############################
 model_for_specs = HybridModel()
 model_for_specs.eval()
-dummy_q_inputs = torch.randn(32)
+dummy_q_inputs = torch.randn(5)
 dummy_q_weights = model_for_specs.q_params.data
 q_specs = qml.specs(quantum_circuit)(dummy_q_inputs, dummy_q_weights)
-assert q_specs["num_tape_wires"] <= 8
-assert q_specs['resources'].depth <= 30
-assert q_specs["num_trainable_params"] <= 60
+assert q_specs["num_tape_wires"] <= 8, f"❌ 큐빗 수 초과: {q_specs['num_tape_wires']} (최대 8)"
+assert q_specs['resources'].depth <= 30, f"❌ 회로 깊이 초과: {q_specs['resources'].depth} (최대 30)"
+assert q_specs["num_trainable_params"] <= 60, f"❌ 학습 퀀텀 파라미터 수 초과: {q_specs['num_trainable_params']} (최대 60)"
 print("✅ QNN 규격 검사 통과")
 
 total_params = sum(p.numel() for p in model_for_specs.parameters() if p.requires_grad)
-assert total_params <= 50000
+assert total_params <= 50000, f"❌ 학습 전체 파라미터 수 초과: {total_params} (최대 50000)"
 print(f"✅ 학습 전체 파라미터 수 검사 통과: {total_params}")
 del model_for_specs
 
 ##############################
-# 7️⃣ 학습
+# 7️⃣ 학습 (하이퍼파라미터 조정)
 ##############################
 model = HybridModel().to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.0005, weight_decay=1e-5)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=7, factor=0.5)
+optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-4)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=10, factor=0.5)
 criterion = nn.NLLLoss()
 best_acc = 0.0
-early_stopping_patience = 15
+early_stopping_patience = 25
 epochs_no_improve = 0
+epochs = 500
 
-epochs = 100
 for epoch in range(epochs):
+    start_time = time.time()
+    
     model.train()
     total_loss = 0
     correct = 0
@@ -201,8 +228,12 @@ for epoch in range(epochs):
             print(f"Early stopping triggered at epoch {epoch+1}.")
             break
 
+    end_time = time.time()
+    epoch_time = end_time - start_time
+    print(f"🕒 Epoch {epoch+1} 소요 시간: {epoch_time:.2f}초")
+
 ##############################
-# 8️⃣ 모델 저장
+# 8️⃣ 모델 저장 (동일)
 ##############################
 now = datetime.now().strftime("%Y%m%d_%H%M%S")
 model_path = os.path.join(base_path, f'model_{now}_final_train_acc_{best_acc:.4f}.pth')
@@ -210,7 +241,7 @@ torch.save(model.state_dict(), model_path)
 print(f"✅ 마지막 모델 저장 완료: {model_path}")
 
 ##############################
-# 9️⃣ 추론 및 제출 생성
+# 9️⃣ 추론 및 제출 생성 (동일)
 ##############################
 model.load_state_dict(torch.load(os.path.join(base_path, 'best_model.pth')))
 model.eval()
