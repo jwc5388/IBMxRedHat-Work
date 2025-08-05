@@ -55,7 +55,7 @@ dev = qml.device("default.qubit", wires=5)
 @qml.qnode(dev, interface="torch")
 def quantum_circuit(inputs, weights):
     num_qubits = 5
-    layers = 3
+    layers = 2
     
     num_weights_per_layer = num_qubits * 2
     
@@ -272,3 +272,8 @@ csv_filename = f"{base_path}y_pred_{now}.csv"
 df = pd.DataFrame({"y_pred": final_submission_preds})
 df.to_csv(csv_filename, index=False, header=False)
 print(f"✅ 결과 저장 완료: {csv_filename}")
+
+
+
+
+# ✅ 마지막 모델 저장 완료: /Users/jaewoo000/Desktop/IBM:RedHat/Study25/_data/quantum/model_20250805_015333_final_train_acc_92.7417.pth
