@@ -30,7 +30,7 @@ warnings.filterwarnings("ignore")
 # ==============================
 # 0) 시드 / 경로
 # ==============================
-seed = 6054
+seed = 2025
 random.seed(seed)
 np.random.seed(seed)
 tf.random.set_seed(seed)
@@ -357,7 +357,7 @@ def process_building_kfold(bno):
     # [변경] 건물당 1회만 Optuna 튜닝 후 파라미터 로드
     best_params = get_or_tune_params_once(bno, X_full, y_full, param_dir)
 
-    kf = KFold(n_splits=5, shuffle=True, random_state=seed)  # 외부 KFold는 그대로 유지
+    kf = KFold(n_splits=8, shuffle=True, random_state=seed)  # 외부 KFold는 그대로 유지
     test_preds, val_smapes = [], []
 
     # [변경] Ridge도 건물당 1회만: 첫 fold에서 튜닝 → 저장, 이후 로드

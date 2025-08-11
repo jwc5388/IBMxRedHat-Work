@@ -5,14 +5,14 @@ import torch
 
 x = np.arange(-5,5,0.1)
 
-# def silu(x):
-#     return x * (1/(1+np.exp(-x)))
+def elu(x, alpha):
+    return (x>0)*x + (x<0)* (alpha*(np.exp(x)-1))
 
 
-silu = lambda x: x * (1/(1+np.exp(-x)))
+# elu = lambda x: (x>0)*x + (x<0)* (alpha*(np.exp(x)-1))
 
 
-y = silu(x)
+y = elu(x,1)
 
 
 
