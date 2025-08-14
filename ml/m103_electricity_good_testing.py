@@ -1,3 +1,5 @@
+#얘로 옵튜나한게 최고. 근데 내 다른 모델/전처리에다가 적용시킨거!
+
 import os
 import json
 import random
